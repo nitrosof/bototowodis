@@ -11,11 +11,13 @@ const PORT = process.env.PORT || 3000;
 const CHANNEL_NAME = process.env.CHANNEL_NAME;
 const MIN_PRICE = parseInt(process.env.MIN_PRICE);
 const MAX_PRICE = parseInt(process.env.MAX_PRICE);
-const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL) * 1000;
+const CHECK_INTERVAL = parseInt(process.env.CHECK_INTERVAL) * 1000; // Intervalo general de verificación
+const ALERT_INTERVAL = parseInt(process.env.ALERT_INTERVAL) * 1000; // Intervalo para enviar notificaciones vistosas
 
 // Variables globales
 let accessToken = null;
 let tokenExpiration = 0;
+let alertTimer = null; // Controla la repetición de alertas
 
 // Configurar Express para responder solicitudes
 app.get("/", (req, res) => res.send("El bot está activo y funcionando."));
@@ -91,8 +93,33 @@ async function checkPricePeriodically() {
 
     setInterval(async () => {
         const data = await getWowTokenPrice();
-        if (data && data.price >= MIN_PRICE && data.price <= MAX_PRICE) {
-            channel.send(`🎉 ¡El precio del WoW Token está en el rango!\n💰 **Precio:** ${data.price} oro\n⏱ **Actualización:** ${data.updated}`);
+        if (data) {
+            // Notificación automática del precio en el intervalo especificado
+            channel.send(`💰 **Precio Actual del WoW Token (US):** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`);
+
+            // Si el precio está en el rango, iniciar notificaciones vistosas
+            if (data.price >= MIN_PRICE && data.price <= MAX_PRICE) {
+                if (!alertTimer) {
+                    alertTimer = setInterval(() => {
+                        channel.send({
+                            content: `🎉🎉 **¡ALERTA!** 🎉🎉\n💰 **El precio del WoW Token está en el rango establecido:**\n**Precio:** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`,
+                            embeds: [
+                                {
+                                    title: "¡El precio del WoW Token está dentro del rango!",
+                                    description: `El precio actual es **${data.price} oro**.`,
+                                    color: 0xffd700, // Oro
+                                    timestamp: new Date(),
+                                    footer: { text: "Battle.net API" },
+                                },
+                            ],
+                        });
+                    }, ALERT_INTERVAL);
+                }
+            } else if (alertTimer) {
+                // Detener alertas si el precio sale del rango
+                clearInterval(alertTimer);
+                alertTimer = null;
+            }
         }
     }, CHECK_INTERVAL);
 }

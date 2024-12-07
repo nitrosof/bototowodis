@@ -17,7 +17,7 @@ const ALERT_INTERVAL = parseInt(process.env.ALERT_INTERVAL) * 1000; // Intervalo
 // Variables globales
 let accessToken = null;
 let tokenExpiration = 0;
-let alertTimers = new Map(); // Map para manejar timers por servidor
+let alertTimers = new Map(); // Timers por servidor
 
 // Configurar Express para responder solicitudes
 app.get("/", (req, res) => res.send("El bot está activo y funcionando."));
@@ -75,8 +75,9 @@ async function getWowTokenPrice() {
 async function notifyAllServers(message, embed = null) {
     client.guilds.cache.forEach((guild) => {
         const channel = guild.channels.cache.find(
-            (ch) => ch.name === CHANNEL_NAME && ch.type === "GUILD_TEXT"
+            (ch) => ch.name === CHANNEL_NAME && ch.isText()
         );
+
         if (channel) {
             const options = { content: message };
             if (embed) options.embeds = [embed];

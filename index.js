@@ -107,24 +107,7 @@ async function notifyAllServers(message, embed = null) {
         }
     });
 }
-/*async function notifyAllServers(message, embed = null) {
-    client.guilds.cache.forEach((guild) => {
-        const channel = guild.channels.cache.find(
-            (ch) => ch.name === CHANNEL_NAME && ch.isText()
-        );
 
-        if (channel) {
-            const options = { content: message };
-            if (embed) options.embeds = [embed];
-
-            channel.send(options).catch((error) => {
-                console.error(`Error enviando mensaje al canal ${channel.name} en ${guild.name}:`, error);
-            });
-        } else {
-            console.warn(`Canal ${CHANNEL_NAME} no encontrado en el servidor ${guild.name}`);
-        }
-    });
-}*/
 
 // Verificación periódica del precio
 async function checkPricePeriodically() {

@@ -17,7 +17,7 @@ const ALERT_INTERVAL = parseInt(process.env.ALERT_INTERVAL) * 1000; // Intervalo
 // Variables globales
 let accessToken = null;
 let tokenExpiration = 0;
-let alertTimer = null; // Controla la repetición de alertas
+let alertTimers = new Map(); // Map para manejar timers por servidor
 
 // Configurar Express para responder solicitudes
 app.get("/", (req, res) => res.send("El bot está activo y funcionando."));
@@ -71,55 +71,61 @@ async function getWowTokenPrice() {
     }
 }
 
-// Comando para mostrar el precio actual
-client.on("messageCreate", async (message) => {
-    if (message.content === "!precio") {
-        const data = await getWowTokenPrice();
-        if (data) {
-            message.channel.send(`💰 **Precio Actual del WoW Token (US):** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`);
+// Enviar notificación a todos los servidores
+async function notifyAllServers(message, embed = null) {
+    client.guilds.cache.forEach((guild) => {
+        const channel = guild.channels.cache.find(
+            (ch) => ch.name === CHANNEL_NAME && ch.type === "GUILD_TEXT"
+        );
+        if (channel) {
+            const options = { content: message };
+            if (embed) options.embeds = [embed];
+
+            channel.send(options).catch((error) => {
+                console.error(`Error enviando mensaje al canal ${channel.name} en ${guild.name}:`, error);
+            });
         } else {
-            message.channel.send("⚠️ No se pudo obtener el precio. Inténtalo más tarde.");
+            console.warn(`Canal ${CHANNEL_NAME} no encontrado en el servidor ${guild.name}`);
         }
-    }
-});
+    });
+}
 
 // Verificación periódica del precio
 async function checkPricePeriodically() {
-    const channel = client.channels.cache.find((ch) => ch.name === CHANNEL_NAME);
-    if (!channel) {
-        console.error(`Canal ${CHANNEL_NAME} no encontrado.`);
-        return;
-    }
-
     setInterval(async () => {
         const data = await getWowTokenPrice();
         if (data) {
-            // Notificación automática del precio en el intervalo especificado
-            channel.send(`💰 **Precio Actual del WoW Token (US):** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`);
+            // Notificación automática del precio
+            await notifyAllServers(
+                `💰 **Precio Actual del WoW Token (US):** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`
+            );
 
-            // Si el precio está en el rango, iniciar notificaciones vistosas
-            if (data.price >= MIN_PRICE && data.price <= MAX_PRICE) {
-                if (!alertTimer) {
-                    alertTimer = setInterval(() => {
-                        channel.send({
-                            content: `🎉🎉 **¡ALERTA!** 🎉🎉\n💰 **El precio del WoW Token está en el rango establecido:**\n**Precio:** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`,
-                            embeds: [
-                                {
-                                    title: "¡El precio del WoW Token está dentro del rango!",
-                                    description: `El precio actual es **${data.price} oro**.`,
-                                    color: 0xffd700, // Oro
-                                    timestamp: new Date(),
-                                    footer: { text: "Battle.net API" },
-                                },
-                            ],
-                        });
-                    }, ALERT_INTERVAL);
+            // Si el precio está en el rango, enviar notificaciones vistosas a los servidores
+            client.guilds.cache.forEach((guild) => {
+                const guildId = guild.id;
+                if (data.price >= MIN_PRICE && data.price <= MAX_PRICE) {
+                    if (!alertTimers.has(guildId)) {
+                        const alertTimer = setInterval(() => {
+                            const alertEmbed = {
+                                title: "¡El precio del WoW Token está dentro del rango!",
+                                description: `El precio actual es **${data.price} oro**.`,
+                                color: 0xffd700, // Oro
+                                timestamp: new Date(),
+                                footer: { text: "Battle.net API" },
+                            };
+                            notifyAllServers(
+                                `🎉🎉 **¡ALERTA!** 🎉🎉\n💰 **El precio del WoW Token está en el rango establecido:**\n**Precio:** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`,
+                                alertEmbed
+                            );
+                        }, ALERT_INTERVAL);
+                        alertTimers.set(guildId, alertTimer);
+                    }
+                } else if (alertTimers.has(guildId)) {
+                    // Detener alertas si el precio sale del rango
+                    clearInterval(alertTimers.get(guildId));
+                    alertTimers.delete(guildId);
                 }
-            } else if (alertTimer) {
-                // Detener alertas si el precio sale del rango
-                clearInterval(alertTimer);
-                alertTimer = null;
-            }
+            });
         }
     }, CHECK_INTERVAL);
 }

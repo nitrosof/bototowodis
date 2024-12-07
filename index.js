@@ -71,6 +71,23 @@ async function getWowTokenPrice() {
     }
 }
 
+// Escuchar mensajes para el comando "!precio"
+client.on("messageCreate", async (message) => {
+    if (message.author.bot) return; // Ignorar mensajes de otros bots
+
+    if (message.content.trim() === "!precio") {
+        console.log(`Comando recibido en servidor ${message.guild.name}, canal ${message.channel.name}`);
+        const data = await getWowTokenPrice();
+        if (data) {
+            message.channel.send(
+                `💰 **Precio Actual del WoW Token (US):** ${data.price} oro\n⏱ **Última Actualización:** ${data.updated}`
+            );
+        } else {
+            message.channel.send("⚠️ No se pudo obtener el precio. Inténtalo más tarde.");
+        }
+    }
+});
+
 // Enviar notificación a todos los servidores
 async function notifyAllServers(message, embed = null) {
     client.guilds.cache.forEach((guild) => {
